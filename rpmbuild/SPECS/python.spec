@@ -5,7 +5,7 @@
 %global with_rewheel 0
 
 %{!?__python_ver:%global __python_ver EMPTY}
-#global __python_ver 27
+%global __python_ver 2.7
 %global unicode ucs4
 
 %if "%{__python_ver}" != "EMPTY"
@@ -37,18 +37,18 @@
 %global py_INSTSONAME_optimized libpython%{pybasever}.so.%{py_SOVERSION}
 %global py_INSTSONAME_debug     libpython%{pybasever}_d.so.%{py_SOVERSION}
 
-%global with_debug_build 1
+%global with_debug_build 0
 
 # Disabled for now:
 %global with_huntrleaks 0
 
-%global with_gdb_hooks 1
+%global with_gdb_hooks 0
 
 %global with_systemtap 1
 
 # some arches don't have valgrind so we need to disable its support on them
 %ifnarch s390
-%global with_valgrind 1
+%global with_valgrind 0
 %else
 %global with_valgrind 0
 %endif
@@ -1541,11 +1541,11 @@ fi
 
 %if %{main_python}
 %else
-mv %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
+#mv %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
 %if 0%{?with_debug_build}
-mv %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
+#mv %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
 %endif # with_debug_build
-mv %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
+#mv %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
 %endif
 
 # tools
@@ -1954,8 +1954,8 @@ rm -fr %{buildroot}
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/python-%{pybasever}.pc
-%{_libdir}/pkgconfig/python.pc
-%{_libdir}/pkgconfig/python2.pc
+#%{_libdir}/pkgconfig/python.pc
+#%{_libdir}/pkgconfig/python2.pc
 %{pylibdir}/config/*
 %exclude %{pylibdir}/config/Makefile
 %{pylibdir}/distutils/command/wininst-*.exe
@@ -2068,6 +2068,7 @@ rm -fr %{buildroot}
 %{dynload_dir}/_cryptmodule_d.so
 %{dynload_dir}/datetime_d.so
 %{dynload_dir}/dbm_d.so
+%{dynload_dir}/gdbm.so
 %{dynload_dir}/dlmodule_d.so
 %{dynload_dir}/fcntlmodule_d.so
 %{dynload_dir}/future_builtins_d.so
@@ -2112,8 +2113,8 @@ rm -fr %{buildroot}
 # Analog of the -devel subpackage's files:
 %dir %{pylibdir}/config-debug
 %{_libdir}/pkgconfig/python-%{pybasever}-debug.pc
-%{_libdir}/pkgconfig/python-debug.pc
-%{_libdir}/pkgconfig/python2-debug.pc
+#%{_libdir}/pkgconfig/python-debug.pc
+#%{_libdir}/pkgconfig/python2-debug.pc
 %{pylibdir}/config-debug/*
 %{_includedir}/python%{pybasever}-debug/*.h
 %if %{main_python}
