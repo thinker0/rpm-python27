@@ -1459,7 +1459,7 @@ InstallPython() {
 
   pushd $ConfDir
 
-make install DESTDIR=%{buildroot}
+make altinstall DESTDIR=%{buildroot}
 
 # We install a collection of hooks for gdb that make it easier to debug
 # executables linked against libpython (such as /usr/lib/python itself)
