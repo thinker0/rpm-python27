@@ -1708,9 +1708,11 @@ sed \
 %endif # with_systemtap
 
 # Make library-files user writable
-#/usr/bin/chmod 755 -f %{buildroot}%{dynload_dir}/*.so
-#/usr/bin/chmod 755 -f %{buildroot}%{_libdir}/libpython%{pybasever}.so.1.0
-#/usr/bin/chmod 755 -f %{buildroot}%{_libdir}/libpython%{pybasever}_d.so.1.0
+chmod 755 %{buildroot}%{dynload_dir}/*.so
+chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}.so.1.0
+%if 0%{?with_debug_build}
+chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}_d.so.1.0
+%endif
 
 
 # ======================================================
