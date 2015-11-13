@@ -1,7 +1,7 @@
 # ======================================================
 # Conditionals and other variables controlling the build
 # ======================================================
-# http://dev.centos.org/c7.01.u/python/20150623235938/2.7.5-18.el7_1.1.x86_64/
+
 %{!?__python_ver:%global __python_ver EMPTY}
 %global __python_ver 27
 %global unicode ucs4
@@ -54,7 +54,7 @@
 %global with_gdbm 1
 
 # Turn this to 0 to turn off the "check" phase:
-%global run_selftest_suite 1
+%global run_selftest_suite 0
 
 # Some of the files below /usr/lib/pythonMAJOR.MINOR/test  (e.g. bad_coding.py)
 # are deliberately invalid, leading to SyntaxError exceptions if they get
@@ -127,7 +127,7 @@ BuildRequires: bzip2-devel
 
 # expat 2.1.0 added the symbol XML_SetHashSalt without bumping SONAME.  We use
 # it (in pyexpat) in order to enable the fix in Python-2.7.3 for CVE-2012-0876:
-BuildRequires: expat-devel
+BuildRequires: expat-devel >= 2.0.1
 
 BuildRequires: findutils
 BuildRequires: gcc-c++
@@ -1502,7 +1502,7 @@ mv %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
 %if 0%{?with_debug_build}
 mv %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
 %endif # with_debug_build
-mv %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
+#mv %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
 %endif
 
 # tools
@@ -1666,9 +1666,9 @@ sed \
 # Replace scripts shebangs in usr/bin of subpackage tools
 #(rhbz#987038)
 sed -i "s|^#\!.\?/usr/bin.*$|#\! %{__python}|" \
-  %{buildroot}%{_bindir}/pygettext.py \
-  %{buildroot}%{_bindir}/msgfmt.py \
-  %{buildroot}%{_bindir}/smtpd.py \
+  %{buildroot}%{_bindir}/pygettext%{__python_ver}.py \
+  %{buildroot}%{_bindir}/msgfmt%{__python_ver}.py \
+  %{buildroot}%{_bindir}/smtpd%{__python_ver}.py \
   %{buildroot}%{demo_dir}/scripts/find-uname.py \
   %{buildroot}%{demo_dir}/pdist/rcvs \
   %{buildroot}%{demo_dir}/pdist/rcsbump \
