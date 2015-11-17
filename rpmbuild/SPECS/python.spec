@@ -3,7 +3,7 @@
 # ======================================================
 
 %{!?__python_ver:%global __python_ver EMPTY}
-%global __python_ver 27
+%global __python_ver 2.7
 %global unicode ucs4
 
 %if "%{__python_ver}" != "EMPTY"
@@ -35,12 +35,12 @@
 %global py_INSTSONAME_optimized libpython%{pybasever}.so.%{py_SOVERSION}
 %global py_INSTSONAME_debug     libpython%{pybasever}_d.so.%{py_SOVERSION}
 
-%global with_debug_build 1
+%global with_debug_build 0
 
 # Disabled for now:
 %global with_huntrleaks 0
 
-%global with_gdb_hooks 1
+%global with_gdb_hooks 0
 
 %global with_systemtap 1
 
@@ -1415,7 +1415,7 @@ InstallPython() {
 
   pushd $ConfDir
 
-make install DESTDIR=%{buildroot}
+make altinstall DESTDIR=%{buildroot}
 
 # We install a collection of hooks for gdb that make it easier to debug
 # executables linked against libpython (such as /usr/lib/python itself)
@@ -1482,7 +1482,7 @@ done
 
 # Junk, no point in putting in -test sub-pkg
 rm -f %{buildroot}/%{pylibdir}/idlelib/testcode.py*
-
+# 
 # don't include tests that are run at build time in the package
 # This is documented, and used: rhbz#387401
 if /bin/false; then
@@ -1497,12 +1497,19 @@ cp -a save_bits_of_test/* %{buildroot}/%{pylibdir}/test
 fi
 
 %if %{main_python}
+rm -f %{buildroot}%{_bindir}/python
+rm -f %{buildroot}%{_bindir}/python-config
+rm -f %{buildroot}%{_bindir}/python2
+rm -f %{buildroot}%{_bindir}/python2-config
 %else
-mv %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
+#mv -f %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
+#mv -f %{buildroot}%{_bindir}/python-config %{buildroot}%{_bindir}/%{python}-config
+#mv -f %{buildroot}%{_bindir}/python2 %{buildroot}%{_bindir}/%{python}
+#mv -f %{buildroot}%{_bindir}/python2-config %{buildroot}%{_bindir}/%{python}-config
 %if 0%{?with_debug_build}
-mv %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
+mv -f %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
 %endif # with_debug_build
-#mv %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
+#mv -f %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
 %endif
 
 # tools
@@ -1679,7 +1686,10 @@ sed -i "s|^#\!.\?/usr/bin.*$|#\! %{__python}|" \
 # rhbz#1046276
 chmod 755 %{buildroot}%{dynload_dir}/*.so
 chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}.so.1.0
+
+%if 0%{?with_debug_build}
 chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}_d.so.1.0
+%endif
 
 # ======================================================
 # Running the upstream test suite
@@ -1902,8 +1912,8 @@ rm -fr %{buildroot}
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/python-%{pybasever}.pc
-%{_libdir}/pkgconfig/python.pc
-%{_libdir}/pkgconfig/python2.pc
+#%{_libdir}/pkgconfig/python%{pybasever}.pc
+#%{_libdir}/pkgconfig/python2.pc
 %{pylibdir}/config/*
 %exclude %{pylibdir}/config/Makefile
 %{pylibdir}/distutils/command/wininst-*.exe
