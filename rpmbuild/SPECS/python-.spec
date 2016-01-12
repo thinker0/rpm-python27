@@ -7,11 +7,11 @@
 %global unicode ucs4
 
 %if "%{__python_ver}" != "EMPTY"
-%global main_python 0
+%global main_python 1
 %global python python%{__python_ver}
 %global tkinter tkinter%{__python_ver}
 %else
-%global main_python 1
+%global main_python 0
 %global python python
 %global tkinter tkinter
 %endif
@@ -40,12 +40,12 @@
 # Disabled for now:
 %global with_huntrleaks 0
 
-%global with_gdb_hooks 0
+%global with_gdb_hooks 1
 
 %global with_systemtap 1
 
 # some arches don't have valgrind so we need to disable its support on them
-%ifarch %{ix86} x86_64 ppc %{power64} s390x aarch64
+%ifarch %{ix86} x86_64 ppc %{power64} s390x
 %global with_valgrind 1
 %else
 %global with_valgrind 0
@@ -54,7 +54,7 @@
 %global with_gdbm 1
 
 # Turn this to 0 to turn off the "check" phase:
-%global run_selftest_suite 0
+%global run_selftest_suite 1
 
 # Some of the files below /usr/lib/pythonMAJOR.MINOR/test  (e.g. bad_coding.py)
 # are deliberately invalid, leading to SyntaxError exceptions if they get
@@ -106,7 +106,7 @@ Summary: An interpreted, interactive, object-oriented programming language
 Name: %{python}
 # Remember to also rebase python-docs when changing this:
 Version: 2.7.5
-Release: 18%{?dist}.1
+Release: 16%{?dist}
 License: Python
 Group: Development/Languages
 Requires: %{python}-libs%{?_isa} = %{version}-%{release}
@@ -127,6 +127,7 @@ BuildRequires: bzip2-devel
 
 # expat 2.1.0 added the symbol XML_SetHashSalt without bumping SONAME.  We use
 # it (in pyexpat) in order to enable the fix in Python-2.7.3 for CVE-2012-0876:
+#BuildRequires: expat-devel >= 2.1.0
 BuildRequires: expat-devel >= 2.0.1
 
 BuildRequires: findutils
@@ -874,16 +875,6 @@ Patch192: 00192-Fix-missing-documentation-for-some-keywords.patch
 # rhbz#1062376
 Patch193: 00193-buffer-overflow.patch
 
-# 00194 #
-# Make GDB test pass even if GDB prints program counter for
-# the first trace frame
-Patch194: 00194-gdb-dont-fail-on-frame-with-address.patch
-
-# 0195 #
-# Make multiprocessing ignore EINTR
-# rhbz#1181624
-Patch195: 00195-make-multiproc-ignore-EINTR.patch
-
 # (New patches go here ^^^)
 #
 # When adding new patches to "python" and "python3" in Fedora 17 onwards,
@@ -1241,8 +1232,6 @@ mv Modules/cryptmodule.c Modules/_cryptmodule.c
 %patch191 -p1
 %patch192 -p1
 %patch193 -p1
-%patch194 -p0
-%patch195 -p1
 
 
 # This shouldn't be necesarry, but is right now (2.2a3)
@@ -1415,7 +1404,7 @@ InstallPython() {
 
   pushd $ConfDir
 
-make altinstall DESTDIR=%{buildroot}
+make install DESTDIR=%{buildroot}
 
 # We install a collection of hooks for gdb that make it easier to debug
 # executables linked against libpython (such as /usr/lib/python itself)
@@ -1435,6 +1424,7 @@ make altinstall DESTDIR=%{buildroot}
 # but doing so generated noise when ldconfig was rerun (rhbz:562980)
 #
 
+%if 0%{?with_debug_build}
 %if 0%{?with_gdb_hooks}
 DirHoldingGdbPy=%{_prefix}/lib/debug/%{_libdir}
 PathOfGdbPy=$DirHoldingGdbPy/$PyInstSoName.debug-gdb.py
@@ -1451,6 +1441,7 @@ LD_LIBRARY_PATH="$topdir/$ConfDir" $topdir/$ConfDir/$BinaryName \
 LD_LIBRARY_PATH="$topdir/$ConfDir" $topdir/$ConfDir/$BinaryName -O \
   -c "import compileall; import sys; compileall.compile_dir('%{buildroot}$DirHoldingGdbPy', ddir='$DirHoldingGdbPy')"
 %endif # with_gdb_hooks
+%endif # with_debug_build
 
   popd
 
@@ -1482,7 +1473,7 @@ done
 
 # Junk, no point in putting in -test sub-pkg
 rm -f %{buildroot}/%{pylibdir}/idlelib/testcode.py*
-# 
+
 # don't include tests that are run at build time in the package
 # This is documented, and used: rhbz#387401
 if /bin/false; then
@@ -1497,19 +1488,12 @@ cp -a save_bits_of_test/* %{buildroot}/%{pylibdir}/test
 fi
 
 %if %{main_python}
-rm -f %{buildroot}%{_bindir}/python
-rm -f %{buildroot}%{_bindir}/python-config
-rm -f %{buildroot}%{_bindir}/python2
-rm -f %{buildroot}%{_bindir}/python2-config
 %else
-#mv -f %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
-#mv -f %{buildroot}%{_bindir}/python-config %{buildroot}%{_bindir}/%{python}-config
-#mv -f %{buildroot}%{_bindir}/python2 %{buildroot}%{_bindir}/%{python}
-#mv -f %{buildroot}%{_bindir}/python2-config %{buildroot}%{_bindir}/%{python}-config
+mv %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
 %if 0%{?with_debug_build}
-mv -f %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
+mv %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}%{pybasever}-debug
 %endif # with_debug_build
-#mv -f %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
+mv %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
 %endif
 
 # tools
@@ -1673,9 +1657,9 @@ sed \
 # Replace scripts shebangs in usr/bin of subpackage tools
 #(rhbz#987038)
 sed -i "s|^#\!.\?/usr/bin.*$|#\! %{__python}|" \
-  %{buildroot}%{_bindir}/pygettext%{__python_ver}.py \
-  %{buildroot}%{_bindir}/msgfmt%{__python_ver}.py \
-  %{buildroot}%{_bindir}/smtpd%{__python_ver}.py \
+  %{buildroot}%{_bindir}/pygettext.py \
+  %{buildroot}%{_bindir}/msgfmt.py \
+  %{buildroot}%{_bindir}/smtpd.py \
   %{buildroot}%{demo_dir}/scripts/find-uname.py \
   %{buildroot}%{demo_dir}/pdist/rcvs \
   %{buildroot}%{demo_dir}/pdist/rcsbump \
@@ -1686,10 +1670,9 @@ sed -i "s|^#\!.\?/usr/bin.*$|#\! %{__python}|" \
 # rhbz#1046276
 chmod 755 %{buildroot}%{dynload_dir}/*.so
 chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}.so.1.0
-
 %if 0%{?with_debug_build}
 chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}_d.so.1.0
-%endif
+%endif # with_debug_build
 
 # ======================================================
 # Running the upstream test suite
@@ -1723,7 +1706,7 @@ CheckPython() {
   # our non-standard decorators take effect on the relevant tests:
   #   @unittest._skipInRpmBuild(reason)
   #   @unittest._expectedFailureInRpmBuild
-  WITHIN_PYTHON_RPM_BUILD= EXTRATESTOPTS="$EXTRATESTOPTS" make test
+  # WITHIN_PYTHON_RPM_BUILD= EXTRATESTOPTS="$EXTRATESTOPTS" make test
 
   popd
 
@@ -1770,7 +1753,7 @@ rm -fr %{buildroot}
 %{_bindir}/pydoc*
 %{_bindir}/%{python}
 %if %{main_python}
-%{_bindir}/python2
+%{_bindir}/python
 %endif
 %{_bindir}/python%{pybasever}
 %{_mandir}/*/*
@@ -1912,8 +1895,8 @@ rm -fr %{buildroot}
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/python-%{pybasever}.pc
-#%{_libdir}/pkgconfig/python%{pybasever}.pc
-#%{_libdir}/pkgconfig/python2.pc
+%{_libdir}/pkgconfig/python.pc
+%{_libdir}/pkgconfig/python2.pc
 %{pylibdir}/config/*
 %exclude %{pylibdir}/config/Makefile
 %{pylibdir}/distutils/command/wininst-*.exe
@@ -2107,18 +2090,6 @@ rm -fr %{buildroot}
 # ======================================================
 
 %changelog
-* Thu Apr 09 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-18.1
-- make multiprocessing ignore EINTR
-Resolves: rhbz#1210347
-
-* Wed Sep  3 2014 Peter Robinson <pbrobinson@redhat.com> 2.7.5-18
-- valgrind is now supported on aarch64/ppc64le
-Resolves: rhbz#1137039
-
-* Thu Aug 07 2014 Slavek Kabrda <bkabrda@redhat.com> - 2.7.5-17
-- Fix building on ppc64le (fix test_gdb, disable valgrind support).
-Resolves: rhbz#1125657
-
 * Mon Feb 10 2014 Tomas Radej <tradej@redhat.com> - 2.7.5-16
 - Fix buffer overflow (upstream patch)
 Resolves: rhbz#1062376
