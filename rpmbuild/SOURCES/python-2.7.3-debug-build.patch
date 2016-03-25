@@ -134,7 +134,7 @@ diff -up Python-2.7.3/Makefile.pre.in.debug-build Python-2.7.3/Makefile.pre.in
  
  PYTHON_FOR_BUILD=@PYTHON_FOR_BUILD@
  _PYTHON_HOST_PLATFORM=@_PYTHON_HOST_PLATFORM@
-@@ -413,7 +419,7 @@ sharedmods: $(BUILDPYTHON)
+@@ -413,10 +419,10 @@ sharedmods: $(BUILDPYTHON)
  	$(RUNSHARED) CC='$(CC)' LDSHARED='$(BLDSHARED)' OPT='$(OPT)' \
  		$(PYTHON_FOR_BUILD) $(srcdir)/setup.py $$quiet build
  
@@ -142,7 +142,11 @@ diff -up Python-2.7.3/Makefile.pre.in.debug-build Python-2.7.3/Makefile.pre.in
 +libpython$(VERSION)$(DEBUG_EXT).so: $(LIBRARY_OBJS)
  	if test $(INSTSONAME) != $(LDLIBRARY); then \
  		$(BLDSHARED) -Wl,-h$(INSTSONAME) -o $(INSTSONAME) $(LIBRARY_OBJS) $(MODLIBS) $(SHLIBS) $(LIBC) $(LIBM) $(LDLAST); \
- 		$(LN) -f $(INSTSONAME) $@; \
+-		$(LN) -f $(INSTSONAME) $@; \
++		$(LN) -sf $(INSTSONAME) $@; \
+	else \
+		$(BLDSHARED) -o $@ $(LIBRARY_OBJS) $(MODLIBS) $(SHLIBS) $(LIBC) $(LIBM) $(LDLAST); \
+	fi
 @@ -796,18 +802,18 @@ bininstall:	altbininstall
  	then rm -f $(DESTDIR)$(BINDIR)/$(PYTHON); \
  	else true; \

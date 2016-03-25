@@ -1,0 +1,105 @@
+diff -up Python-2.7.5/Modules/_ssl.c.none Python-2.7.5/Modules/_ssl.c
+--- Python-2.7.5/Modules/_ssl.c.none	2015-08-06 10:41:14.091782344 +0200
++++ Python-2.7.5/Modules/_ssl.c	2015-08-06 11:02:49.010193679 +0200
+@@ -472,7 +472,7 @@ static PyObject *
+ context_new_args(PyTypeObject *type, int proto_version);
+ 
+ static PyObject *
+-load_cert_chain_args(PySSLContext *self, char *certfile_bytes, char *keyfile_bytes, PyObject *password);
++load_cert_chain_args(PySSLContext *self, char *certfile_bytes, PyObject *keyfile, PyObject *password);
+ 
+ static PyObject *
+ set_ciphers_args(PySSLContext *self, const char *cipherlist);
+@@ -484,7 +484,7 @@ static int
+ set_verify_mode_args(PySSLContext *self, int n);
+ 
+ static PySSLObject *
+-newPySSLObject(PySocketSockObject *Sock, char *key_file, char *cert_file,
++newPySSLObject(PySocketSockObject *Sock, PyObject *key_file, char *cert_file,
+                enum py_ssl_server_or_client socket_type,
+                enum py_ssl_cert_requirements certreq,
+                enum py_ssl_version proto_version,
+@@ -512,7 +512,7 @@ newPySSLObject(PySocketSockObject *Sock,
+     ERR_clear_error();
+ 
+     if ((socket_type == PY_SSL_SERVER) &&
+-        ((key_file == NULL) || (cert_file == NULL))) {
++        ((key_file == Py_None) || (cert_file == NULL) || (key_file == NULL))) {
+         errstr = ERRSTR("Both the key & certificate files "
+                         "must be specified for server-side operation");
+         goto fail;
+@@ -680,7 +680,7 @@ PySSL_sslwrap(PyObject *self, PyObject *
+     int server_side = 0;
+     int verification_mode = PY_SSL_CERT_NONE;
+     int protocol = PY_SSL_VERSION_SSL23;
+-    char *key_file = NULL;
++    PyObject *key_file = NULL;
+     char *cert_file = NULL;
+     PyObject *cacerts_file;
+     const char *ciphers = NULL;
+@@ -2660,22 +2660,39 @@ static PyObject *
+ load_cert_chain(PySSLContext *self, PyObject *args, PyObject *kwds)
+ {
+     char *kwlist[] = {"certfile", "keyfile", "password", NULL};
+-    PyObject *password = NULL;
+-    char *certfile_bytes = NULL, *keyfile_bytes = NULL;
++    PyObject *password = NULL, *keyfile = NULL;
++    char *certfile_bytes = NULL;
+ 
+     errno = 0;
+     ERR_clear_error();
+     if (!PyArg_ParseTupleAndKeywords(args, kwds,
+-            "et|etO:load_cert_chain", kwlist,
++            "et|OO:load_cert_chain", kwlist,
+             Py_FileSystemDefaultEncoding, &certfile_bytes,
+-            Py_FileSystemDefaultEncoding, &keyfile_bytes,
+-            &password))
++            &keyfile, &password))
+         return NULL;
+-    return load_cert_chain_args(self, certfile_bytes, keyfile_bytes, password);
++    return load_cert_chain_args(self, certfile_bytes, keyfile, password);
+     }
+ 
+ static PyObject *
+-load_cert_chain_args(PySSLContext *self, char *certfile_bytes, char *keyfile_bytes ,PyObject *password){
++load_cert_chain_args(PySSLContext *self, char *certfile_bytes, PyObject *keyfile ,PyObject *password){
++
++    PyObject *keyfile_bytes = NULL;
++
++    if (keyfile && keyfile != Py_None) {
++        if (PyString_Check(keyfile)) {
++            Py_INCREF(keyfile);
++            keyfile_bytes = keyfile;
++        } else {
++            PyObject *u = PyUnicode_FromObject(keyfile);
++            if (!u)
++                goto error;
++            keyfile_bytes = PyUnicode_AsEncodedString(
++                u, Py_FileSystemDefaultEncoding, NULL);
++            Py_DECREF(u);
++            if (!keyfile_bytes)
++                goto error;
++        }
++    }
+ 
+     pem_password_cb *orig_passwd_cb = self->ctx->default_passwd_callback;
+     void *orig_passwd_userdata = self->ctx->default_passwd_callback_userdata;
+@@ -2711,7 +2728,7 @@ load_cert_chain_args(PySSLContext *self,
+     }
+     PySSL_BEGIN_ALLOW_THREADS_S(pw_info.thread_state);
+     r = SSL_CTX_use_PrivateKey_file(self->ctx,
+-        keyfile_bytes ? keyfile_bytes : certfile_bytes,
++        keyfile_bytes ? PyBytes_AS_STRING(keyfile_bytes) : certfile_bytes,
+         SSL_FILETYPE_PEM);
+     PySSL_END_ALLOW_THREADS_S(pw_info.thread_state);
+     if (r != 1) {
+@@ -2743,8 +2760,8 @@ load_cert_chain_args(PySSLContext *self,
+ error:
+     SSL_CTX_set_default_passwd_cb(self->ctx, orig_passwd_cb);
+     SSL_CTX_set_default_passwd_cb_userdata(self->ctx, orig_passwd_userdata);
++    Py_XDECREF(keyfile_bytes);
+     PyMem_Free(pw_info.password);
+-    PyMem_Free(keyfile_bytes);
+     PyMem_Free(certfile_bytes);
+     return NULL;
+ }

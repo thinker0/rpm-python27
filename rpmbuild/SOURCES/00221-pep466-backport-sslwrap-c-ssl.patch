@@ -1,0 +1,384 @@
+diff -up Python-2.7.5/Modules/_ssl.c.wrap Python-2.7.5/Modules/_ssl.c
+--- Python-2.7.5/Modules/_ssl.c.wrap	2015-06-25 09:09:59.646325880 +0200
++++ Python-2.7.5/Modules/_ssl.c	2015-06-25 10:33:20.349273370 +0200
+@@ -224,6 +224,19 @@ typedef struct {
+     enum py_ssl_server_or_client socket_type;
+ } PySSLSocket;
+ 
++typedef struct {
++    PyObject_HEAD
++    PySocketSockObject *Socket;         /* Socket on which we're layered */
++    PySSLContext*       ctx;
++    SSL*                ssl;
++    X509*               peer_cert;
++    char                server[X509_NAME_MAXLEN];
++    char                issuer[X509_NAME_MAXLEN];
++    int                 shutdown_seen_zero;
++
++} PySSLObject;
++
++static PyTypeObject PySSL_Type;
+ static PyTypeObject PySSLContext_Type;
+ static PyTypeObject PySSLSocket_Type;
+ 
+@@ -455,6 +468,138 @@ _setSSLError (char *errstr, int errcode,
+  * SSL objects
+  */
+ 
++static PyObject *
++context_new_args(PyTypeObject *type, int proto_version);
++
++static PyObject *
++load_cert_chain_args(PySSLContext *self, char *certfile_bytes, char *keyfile_bytes, PyObject *password);
++
++static PyObject *
++set_ciphers_args(PySSLContext *self, const char *cipherlist);
++
++static PyObject *
++load_verify_locations_args(PySSLContext *self, PyObject *cafile, PyObject *capath, PyObject *cadata);
++
++static int
++set_verify_mode_args(PySSLContext *self, int n);
++
++static PySSLObject *
++newPySSLObject(PySocketSockObject *Sock, char *key_file, char *cert_file,
++               enum py_ssl_server_or_client socket_type,
++               enum py_ssl_cert_requirements certreq,
++               enum py_ssl_version proto_version,
++               PyObject *cacerts_file, const char *ciphers)
++{
++    PySSLObject *self;
++    char *errstr = NULL;
++    SSL_CTX *ctx = NULL;
++
++
++    self = PyObject_New(PySSLObject, &PySSL_Type); /* Create new object */
++    if (self == NULL)
++        return NULL;
++    memset(self->server, '\0', sizeof(char) * X509_NAME_MAXLEN);
++    memset(self->issuer, '\0', sizeof(char) * X509_NAME_MAXLEN);
++
++    self->peer_cert = NULL;
++    self->ssl = NULL;
++    self->ctx = NULL;
++    self->Socket = NULL;
++    self->shutdown_seen_zero = 0;
++
++    /* Make sure the SSL error state is initialized */
++    (void) ERR_get_state();
++    ERR_clear_error();
++
++    if ((socket_type == PY_SSL_SERVER) &&
++        ((key_file == NULL) || (cert_file == NULL))) {
++        errstr = ERRSTR("Both the key & certificate files "
++                        "must be specified for server-side operation");
++        goto fail;
++    }
++
++
++    if ((key_file && !cert_file) || (!key_file && cert_file)) {
++        errstr = ERRSTR("Both the key & certificate files "
++                        "must be specified");
++        goto fail;
++    }
++
++
++    PyObject *sslctx = context_new_args(&PySSLContext_Type, proto_version);
++    if ((sslctx != NULL) && (PyObject_TypeCheck(sslctx, &PySSLContext_Type))) {
++#if !HAVE_SNI
++        errstr = ERRSTR("setting a socket's "
++                        "context is not supported by your OpenSSL library");
++        goto fail;
++#else
++        self->ctx = (PySSLContext *) sslctx;
++        ctx = self->ctx->ctx;
++#endif
++    } else {
++        errstr = ERRSTR("The value must be a SSLContext");
++        goto fail;
++    }
++
++    if (key_file) {
++        load_cert_chain_args(self->ctx, cert_file, key_file, NULL);
++    }
++
++    if (ciphers != NULL) {
++        set_ciphers_args(self->ctx, ciphers);
++    }
++
++
++
++    if (certreq != PY_SSL_CERT_NONE) {
++        if (cacerts_file == Py_None) {
++            errstr = ERRSTR("No root certificates specified for "
++                            "verification of other-side certificates.");
++            goto fail;
++        } else {
++            load_verify_locations_args(self->ctx, cacerts_file, NULL, NULL);
++            }
++    }
++
++    /* ssl compatibility */
++    SSL_CTX_set_options(ctx,
++                        SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS);
++
++    set_verify_mode_args(self->ctx, certreq);
++
++    PySSL_BEGIN_ALLOW_THREADS
++    self->ssl = SSL_new(ctx); /* New ssl struct */
++    PySSL_END_ALLOW_THREADS
++    SSL_set_fd(self->ssl, Sock->sock_fd);       /* Set the socket for SSL */
++#ifdef SSL_MODE_AUTO_RETRY
++    SSL_set_mode(self->ssl, SSL_MODE_AUTO_RETRY);
++#endif
++
++    /* If the socket is in non-blocking mode or timeout mode, set the BIO
++     * to non-blocking mode (blocking is the default)
++     */
++    if (Sock->sock_timeout >= 0.0) {
++        /* Set both the read and write BIO's to non-blocking mode */
++        BIO_set_nbio(SSL_get_rbio(self->ssl), 1);
++        BIO_set_nbio(SSL_get_wbio(self->ssl), 1);
++    }
++   PySSL_BEGIN_ALLOW_THREADS
++   if (socket_type == PY_SSL_CLIENT)
++       SSL_set_connect_state(self->ssl);
++   else
++       SSL_set_accept_state(self->ssl);
++   PySSL_END_ALLOW_THREADS
++
++   self->Socket = Sock;
++   Py_INCREF(self->Socket);
++   return self;
++ fail:
++    if (errstr)
++        PyErr_SetString(PySSLErrorObject, errstr);
++    Py_DECREF(self);
++    return NULL;
++}
++
+ static PySSLSocket *
+ newPySSLSocket(PySSLContext *sslctx, PySocketSockObject *sock,
+                enum py_ssl_server_or_client socket_type,
+@@ -526,6 +671,47 @@ newPySSLSocket(PySSLContext *sslctx, PyS
+ }
+ 
+ 
++
++
++static PyObject *
++PySSL_sslwrap(PyObject *self, PyObject *args)
++{
++    PySocketSockObject *Sock;
++    int server_side = 0;
++    int verification_mode = PY_SSL_CERT_NONE;
++    int protocol = PY_SSL_VERSION_SSL23;
++    char *key_file = NULL;
++    char *cert_file = NULL;
++    PyObject *cacerts_file;
++    const char *ciphers = NULL;
++
++    if (!PyArg_ParseTuple(args, "O!i|zziizz:sslwrap",
++                          PySocketModule.Sock_Type,
++                          &Sock,
++                          &server_side,
++                          &key_file, &cert_file,
++                          &verification_mode, &protocol,
++                          &cacerts_file, &ciphers))
++        return NULL;
++
++    /*
++    fprintf(stderr,
++        "server_side is %d, keyfile %p, certfile %p, verify_mode %d, "
++        "protocol %d, certs %p\n",
++        server_side, key_file, cert_file, verification_mode,
++        protocol, cacerts_file);
++     */
++
++    return (PyObject *) newPySSLObject(Sock, key_file, cert_file,
++                                       server_side, verification_mode,
++                                       protocol, cacerts_file,
++                                       ciphers);
++}
++
++PyDoc_STRVAR(ssl_doc,
++"sslwrap(socket, server_side, [keyfile, certfile, certs_mode, protocol,\n"
++"                              cacertsfile, ciphers]) -> sslobject");
++
+ /* SSL object methods */
+ 
+ static PyObject *PySSL_SSLdo_handshake(PySSLSocket *self)
+@@ -1922,6 +2108,11 @@ static PyMethodDef PySSLMethods[] = {
+     {NULL, NULL}
+ };
+ 
++static PyObject *PySSL_getattr(PySSLObject *self, char *name)
++{
++    return Py_FindMethod(PySSLMethods, (PyObject *)self, name);
++}
++
+ static PyTypeObject PySSLSocket_Type = {
+     PyVarObject_HEAD_INIT(NULL, 0)
+     "_ssl._SSLSocket",                  /*tp_name*/
+@@ -1956,25 +2147,49 @@ static PyTypeObject PySSLSocket_Type = {
+     ssl_getsetlist,                     /*tp_getset*/
+ };
+ 
++static PyTypeObject PySSL_Type = {
++    PyVarObject_HEAD_INIT(NULL, 0)
++    "ssl.SSLContext",                   /*tp_name*/
++    sizeof(PySSLObject),                /*tp_basicsize*/
++    0,                                  /*tp_itemsize*/
++    /* methods */
++    (destructor)PySSL_dealloc,          /*tp_dealloc*/
++    0,                                  /*tp_print*/
++    (getattrfunc)PySSL_getattr,         /*tp_getattr*/
++    0,                                  /*tp_setattr*/
++    0,                                  /*tp_compare*/
++    0,                                  /*tp_repr*/
++    0,                                  /*tp_as_number*/
++    0,                                  /*tp_as_sequence*/
++    0,                                  /*tp_as_mapping*/
++    0,                                  /*tp_hash*/
++};
++
+ 
+ /*
+  * _SSLContext objects
+  */
+ 
++
+ static PyObject *
+ context_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+ {
+     char *kwlist[] = {"protocol", NULL};
+-    PySSLContext *self;
+     int proto_version = PY_SSL_VERSION_SSL23;
+-    long options;
+-    SSL_CTX *ctx = NULL;
+ 
+     if (!PyArg_ParseTupleAndKeywords(
+         args, kwds, "i:_SSLContext", kwlist,
+         &proto_version))
+         return NULL;
++    return  context_new_args(type, proto_version);
++}
+ 
++static PyObject *
++context_new_args(PyTypeObject *type, int proto_version)
++{
++    SSL_CTX *ctx = NULL;
++    PySSLContext *self;
++    long options;
+     PySSL_BEGIN_ALLOW_THREADS
+     if (proto_version == PY_SSL_VERSION_TLS1)
+         ctx = SSL_CTX_new(TLSv1_method());
+@@ -2082,11 +2297,16 @@ context_dealloc(PySSLContext *self)
+ static PyObject *
+ set_ciphers(PySSLContext *self, PyObject *args)
+ {
+-    int ret;
+     const char *cipherlist;
+ 
+     if (!PyArg_ParseTuple(args, "s:set_ciphers", &cipherlist))
+         return NULL;
++    return set_ciphers_args(self, cipherlist);
++    }
++
++static PyObject *
++set_ciphers_args(PySSLContext *self, const char *cipherlist){
++    int ret;
+     ret = SSL_CTX_set_cipher_list(self->ctx, cipherlist);
+     if (ret == 0) {
+         /* Clearing the error queue is necessary on some OpenSSL versions,
+@@ -2204,9 +2424,17 @@ get_verify_mode(PySSLContext *self, void
+ static int
+ set_verify_mode(PySSLContext *self, PyObject *arg, void *c)
+ {
+-    int n, mode;
++    int n;
+     if (!PyArg_Parse(arg, "i", &n))
+         return -1;
++    return set_verify_mode_args(self, n);
++    }
++
++static int
++set_verify_mode_args(PySSLContext *self, int n)
++{
++    int mode;
++
+     if (n == PY_SSL_CERT_NONE)
+         mode = SSL_VERIFY_NONE;
+     else if (n == PY_SSL_CERT_OPTIONAL)
+@@ -2434,10 +2662,6 @@ load_cert_chain(PySSLContext *self, PyOb
+     char *kwlist[] = {"certfile", "keyfile", "password", NULL};
+     PyObject *password = NULL;
+     char *certfile_bytes = NULL, *keyfile_bytes = NULL;
+-    pem_password_cb *orig_passwd_cb = self->ctx->default_passwd_callback;
+-    void *orig_passwd_userdata = self->ctx->default_passwd_callback_userdata;
+-    _PySSLPasswordInfo pw_info = { NULL, NULL, NULL, 0, 0 };
+-    int r;
+ 
+     errno = 0;
+     ERR_clear_error();
+@@ -2447,6 +2671,17 @@ load_cert_chain(PySSLContext *self, PyOb
+             Py_FileSystemDefaultEncoding, &keyfile_bytes,
+             &password))
+         return NULL;
++    return load_cert_chain_args(self, certfile_bytes, keyfile_bytes, password);
++    }
++
++static PyObject *
++load_cert_chain_args(PySSLContext *self, char *certfile_bytes, char *keyfile_bytes ,PyObject *password){
++
++    pem_password_cb *orig_passwd_cb = self->ctx->default_passwd_callback;
++    void *orig_passwd_userdata = self->ctx->default_passwd_callback_userdata;
++    _PySSLPasswordInfo pw_info = { NULL, NULL, NULL, 0, 0 };
++    int r;
++
+     if (password && password != Py_None) {
+         if (PyCallable_Check(password)) {
+             pw_info.callable = password;
+@@ -2598,22 +2833,27 @@ _add_ca_certs(PySSLContext *self, void *
+     return retval;
+ }
+ 
+-
+ static PyObject *
+ load_verify_locations(PySSLContext *self, PyObject *args, PyObject *kwds)
+ {
+     char *kwlist[] = {"cafile", "capath", "cadata", NULL};
+     PyObject *cadata = NULL, *cafile = NULL, *capath = NULL;
+-    PyObject *cafile_bytes = NULL, *capath_bytes = NULL;
+-    const char *cafile_buf = NULL, *capath_buf = NULL;
+-    int r = 0, ok = 1;
+-
+-    errno = 0;
+     if (!PyArg_ParseTupleAndKeywords(args, kwds,
+             "|OOO:load_verify_locations", kwlist,
+             &cafile, &capath, &cadata))
+         return NULL;
++    return load_verify_locations_args(self, cafile, capath, cadata);
++    }
++
+ 
++static PyObject *
++load_verify_locations_args(PySSLContext *self, PyObject *cafile, PyObject *capath, PyObject *cadata)
++{
++    PyObject *cafile_bytes = NULL, *capath_bytes = NULL;
++    const char *cafile_buf = NULL, *capath_buf = NULL;
++    int r = 0, ok = 1;
++
++    errno = 0;
+     if (cafile == Py_None)
+         cafile = NULL;
+     if (capath == Py_None)
+@@ -3688,6 +3928,8 @@ PySSL_enum_crls(PyObject *self, PyObject
+ /* List of functions exported by this module. */
+ 
+ static PyMethodDef PySSL_methods[] = {
++    {"sslwrap",             PySSL_sslwrap,
++     METH_VARARGS, ssl_doc},
+     {"_test_decode_cert",       PySSL_test_decode_certificate,
+      METH_VARARGS},
+ #ifdef HAVE_OPENSSL_RAND

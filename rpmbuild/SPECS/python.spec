@@ -106,7 +106,7 @@ Summary: An interpreted, interactive, object-oriented programming language
 Name: %{python}
 # Remember to also rebase python-docs when changing this:
 Version: 2.7.5
-Release: 18%{?dist}.1
+Release: 34%{?dist}
 License: Python
 Group: Development/Languages
 Requires: %{python}-libs%{?_isa} = %{version}-%{release}
@@ -127,7 +127,7 @@ BuildRequires: bzip2-devel
 
 # expat 2.1.0 added the symbol XML_SetHashSalt without bumping SONAME.  We use
 # it (in pyexpat) in order to enable the fix in Python-2.7.3 for CVE-2012-0876:
-BuildRequires: expat-devel >= 2.0.1
+BuildRequires: expat-devel
 
 BuildRequires: findutils
 BuildRequires: gcc-c++
@@ -196,6 +196,13 @@ Source5: pyfuntop.stp
 Source6: macros.python2
 
 Source7: pynche
+
+# Configuration file to change ssl verification settings globally
+# Downstream only see Patch224
+Source8: cert-verification.cfg
+
+# configuration for systemd's tmpfiles
+Source9: python.conf
 
 # Modules/Setup.dist is ultimately used by the "makesetup" script to construct
 # the Makefile and config.c
@@ -884,6 +891,134 @@ Patch194: 00194-gdb-dont-fail-on-frame-with-address.patch
 # rhbz#1181624
 Patch195: 00195-make-multiproc-ignore-EINTR.patch
 
+# 00196 #
+# Avoid double close of subprocess pipes when the child process
+# fails starting
+# rhbz#110345p
+Patch196: 00196-avoid-double-close-of-pipes.patch
+
+# 00197 #
+# Add missing import in bdist_rpm
+# rhbz#1177613
+Patch197: 00197-add-missing-import-in-bdist_rpm.patch
+
+# 00198 #
+# Fix importing readline producing erroneous output
+Patch198: 00198-fix-readline-erroneous-output.patch
+
+# 00199 #
+# Fix for CVE-2013-1753
+# rhbz#1046170
+Patch199: 00199-CVE-2013-1753.patch
+
+# 00200 #
+# Fix for CVE-2014-4616
+# rhbz#1112285
+Patch200: 00200-CVE-2014-4616.patch
+
+# 00201 #
+# Fix for CVE-2014-4650
+# rhbz#1113527
+Patch201: 00201-CVE-2014-4650.patch
+
+# 00202 #
+# Fix for CVE-2014-7185
+# rhbz#1146026
+Patch202: 00202-CVE-2014-7185.patch
+
+# Fixes for CVE-2013-1752
+# rhbz#1046174
+Patch203: 00203-CVE-2013-1752-nntplib.patch
+Patch204: 00204-CVE-2013-1752-ftplib.patch
+Patch205: 00205-CVE-2013-1752-httplib-headers.patch
+Patch206: 00206-CVE-2013-1752-poplib.patch
+Patch207: 00207-CVE-2013-1752-smtplib.patch
+Patch208: 00208-CVE-2013-1752-imaplib.patch
+
+# ================== PEP466===========================
+# Massive backport of PEP466 and relevant other fixes
+# ================rhbz#1111461========================
+# 00209 #
+# backport hmac.compare_digest 
+# http://bugs.python.org/issue21306
+Patch209: 00209-pep466-backport-hmac.compare_digest.patch
+# 00210 #
+# backport hashlib.pbkdf2_hmac
+# http://bugs.python.org/issue21304
+Patch210: 00210-pep466-backport-hashlib.pbkdf2_hmac.patch
+# 00211 #
+# UTF-7 decoder can produce inconsistent Unicode string
+# http://bugs.python.org/issue19279
+Patch211: 00211-pep466-UTF-7-decoder-fix-illegal-unicode.patch
+# 00212 #
+# Add range check for %c in PyUnicode_FromFormat
+# http://bugs.python.org/issue18184
+Patch212: 00212-pep466-pyunicode_fromformat-raise-overflow.patch
+# 00213 #
+# Fix %S, %R and %V formats of PyUnicode_FromFormat().
+# http://bugs.python.org/issue122023
+Patch213: 00213-pep466-pyunicode_fromformat-fix-formats.patch
+# 00214 #
+# Backport SSL module from Python3
+# http://bugs.python.org/issue21308
+Patch214: 00214-pep466-backport-py3-ssl-changes.patch
+# 00215 #
+# OpenSSL disabled various ciphers and protocols
+# we have to reflect it in tests
+Patch215: 00215-pep466-reflect-openssl-settings-ssltests.patch
+# 00216 #
+# fix load_verify_locations on unicode paths
+# http://bugs.python.org/issue22244
+Patch216: 00216-pep466-fix-load-verify-locs-unicode.patch
+# 00217 #
+# backport hashlib changes
+# http://bugs.python.org/issue21307
+Patch217: 00217-pep466-backport-hashlib-algorithm-consts.patch
+# 00218 #
+# update os.urandom
+# http://bugs.python.org/issue21305
+Patch218: 00218-pep466-backport-urandom-pers-fd.patch
+# 00219 #
+# Lib/ssl.py still references _ssl.sslwrap
+# http://bugs.python.org/issue22523
+Patch219: 00219-pep466-fix-referenced-sslwrap.patch
+# 00220 #
+# allow passing cert/ssl information to urllib2.urlopen and httplib.HTTPSConnection
+Patch220: 00220-pep466-allow-passing-ssl-urrlib-httplib.patch
+# 00221 #
+# Patch214 remove sslwrap from _ssl.c this so we have to reimplement it
+Patch221: 00221-pep466-backport-sslwrap-c-ssl.patch
+# 00222 #
+# test_ssl: fails on recent libressl version with BAD_DH_P_LENGTH
+# https://bugs.python.org/issue23844
+Patch222: 00222-add-2014-bit-dh-key.patch
+# 00223 #
+# PEP 476: verify HTTPS certificates by default
+# http://bugs.python.org/issue22417
+# Resolves:rhbz#1219110
+Patch223: 00223-pep476-verify-certs-by-default.patch
+# 00224 #
+# Add switch to toggle global verification on and off
+# Resolves:rhbz#1219108
+# For more information see PEP493
+Patch224: 00224-pep476-add-toggle-for-cert-verify.patch
+
+# 00225 #
+# Add list of choices to sort option of cProfile
+# Resolves:rhbz#1237107
+Patch225: 00225-cprofile-sort-option.patch
+
+# 00227 #
+# Make load_cert_chain function of SSLContext accept
+# keyfile which is set to None
+# Resolves: rhbz#1250611
+Patch227: 00227-accept-none-keyfile-loadcertchain.patch
+
+# 00228 #
+# Backport SSLSocket.version function
+# Resolves: rhbz#1259421
+Patch228: 00228-backport-ssl-version.patch
+
 # (New patches go here ^^^)
 #
 # When adding new patches to "python" and "python3" in Fedora 17 onwards,
@@ -973,7 +1108,7 @@ Group: Applications/System
 # this symbol (in pyexpat), so we must explicitly state this dependency to
 # prevent "import pyexpat" from failing with a linker error if someone hasn't
 # yet upgraded expat:
-Requires: expat >= 2.1.0
+Requires: expat
 
 %description libs
 This package contains runtime libraries for use by Python:
@@ -1243,6 +1378,39 @@ mv Modules/cryptmodule.c Modules/_cryptmodule.c
 %patch193 -p1
 %patch194 -p0
 %patch195 -p1
+%patch196 -p1
+%patch197 -p1
+%patch198 -p1
+%patch199 -p1
+%patch200 -p1
+%patch201 -p1
+%patch202 -p1
+%patch203 -p1
+%patch204 -p1
+%patch205 -p1
+%patch206 -p1
+%patch207 -p1
+%patch208 -p1
+%patch209 -p1 
+%patch210 -p1
+%patch211 -p1
+%patch212 -p1
+%patch213 -p1
+%patch214 -p1
+%patch215 -p1
+%patch216 -p1
+%patch217 -p1
+%patch218 -p1
+%patch219 -p1
+%patch220 -p1
+%patch221 -p1
+%patch222 -p1
+%patch223 -p1
+%patch224 -p1
+%patch225 -p1
+%patch227 -p1
+%patch228 -p1
+
 
 
 # This shouldn't be necesarry, but is right now (2.2a3)
@@ -1352,7 +1520,8 @@ make EXTRA_CFLAGS="$CFLAGS" %{?_smp_mflags}
 # optimized python binary:
 if $PathFixWithThisBinary
 then
-  LD_LIBRARY_PATH="$topdir/$ConfDir" ./$BinaryName \
+  #LD_LIBRARY_PATH="$topdir/$ConfDir" ./$BinaryName \
+  LD_LIBRARY_PATH="$topdir/$ConfDir" \
     $topdir/Tools/scripts/pathfix.py \
       -i "%{_bindir}/env $BinaryName" \
       $topdir
@@ -1482,7 +1651,7 @@ done
 
 # Junk, no point in putting in -test sub-pkg
 rm -f %{buildroot}/%{pylibdir}/idlelib/testcode.py*
-# 
+
 # don't include tests that are run at build time in the package
 # This is documented, and used: rhbz#387401
 if /bin/false; then
@@ -1502,12 +1671,9 @@ rm -f %{buildroot}%{_bindir}/python-config
 rm -f %{buildroot}%{_bindir}/python2
 rm -f %{buildroot}%{_bindir}/python2-config
 %else
-#mv -f %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
-#mv -f %{buildroot}%{_bindir}/python-config %{buildroot}%{_bindir}/%{python}-config
-#mv -f %{buildroot}%{_bindir}/python2 %{buildroot}%{_bindir}/%{python}
-#mv -f %{buildroot}%{_bindir}/python2-config %{buildroot}%{_bindir}/%{python}-config
+#mv %{buildroot}%{_bindir}/python %{buildroot}%{_bindir}/%{python}
 %if 0%{?with_debug_build}
-mv -f %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
+#mv -f %{buildroot}%{_bindir}/python-debug %{buildroot}%{_bindir}/%{python}-debug
 %endif # with_debug_build
 #mv -f %{buildroot}/%{_mandir}/man1/python.1 %{buildroot}/%{_mandir}/man1/python%{pybasever}.1
 %endif
@@ -1546,8 +1712,10 @@ cp -ar Demo/* %{buildroot}%{demo_dir}
 find %{buildroot}/ -name "*~"|xargs rm -f
 find %{buildroot}/ -name ".cvsignore"|xargs rm -f
 find %{buildroot}/ -name "*.bat"|xargs rm -f
+find %{buildroot}/ -name ".DS_Store"|xargs rm -f
 find . -name "*~"|xargs rm -f
 find . -name ".cvsignore"|xargs rm -f
+find . -name ".DS_Store" |xargs rm -f
 #zero length
 rm -f %{buildroot}%{pylibdir}/LICENSE.txt
 
@@ -1620,6 +1788,10 @@ sed -i -e "s/'pyconfig.h'/'%{_pyconfig_h}'/" \
 mkdir -p %{buildroot}/%{_sysconfdir}/rpm
 install -m 644 %{SOURCE6} %{buildroot}/%{_sysconfdir}/rpm
 
+# Make python folder for config files under /etc
+mkdir -p %{buildroot}/%{_sysconfdir}/python
+install -m 644 %{SOURCE8} %{buildroot}/%{_sysconfdir}/python
+
 # Ensure that the curses module was linked against libncursesw.so, rather than
 # libncurses.so (bug 539917)
 ldd %{buildroot}/%{dynload_dir}/_curses*.so \
@@ -1686,10 +1858,12 @@ sed -i "s|^#\!.\?/usr/bin.*$|#\! %{__python}|" \
 # rhbz#1046276
 chmod 755 %{buildroot}%{dynload_dir}/*.so
 chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}.so.1.0
-
 %if 0%{?with_debug_build}
 chmod 755 %{buildroot}%{_libdir}/libpython%{pybasever}_d.so.1.0
-%endif
+%endif # with_debug_build
+
+mkdir %{buildroot}%{_sysconfdir}/tmpfiles.d
+cp %{SOURCE9} %{buildroot}%{_sysconfdir}/tmpfiles.d/python.conf
 
 # ======================================================
 # Running the upstream test suite
@@ -1710,6 +1884,11 @@ CheckPython() {
   pushd $ConfDir
 
   EXTRATESTOPTS="--verbose"
+  # skipping test_gdb on ppc64le until rhbz1260558 gets resolved
+  %ifarch ppc64le
+    EXTRATESTOPTS="$EXTRATESTOPTS -x test_gdb "
+  %endif
+
 
 %if 0%{?with_huntrleaks}
   # Try to detect reference leaks on debug builds.  By default this means
@@ -1780,6 +1959,9 @@ rm -fr %{buildroot}
 %doc LICENSE README
 %dir %{pylibdir}
 %dir %{dynload_dir}
+%dir %{_sysconfdir}/python
+%{_sysconfdir}/tmpfiles.d/python.conf
+%config(noreplace) %{_sysconfdir}/python/cert-verification.cfg
 %{dynload_dir}/Python-%{version}-py%{pybasever}.egg-info
 %{dynload_dir}/_bisectmodule.so
 %{dynload_dir}/_bsddb.so
@@ -1912,7 +2094,7 @@ rm -fr %{buildroot}
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/python-%{pybasever}.pc
-#%{_libdir}/pkgconfig/python%{pybasever}.pc
+#%{_libdir}/pkgconfig/python.pc
 #%{_libdir}/pkgconfig/python2.pc
 %{pylibdir}/config/*
 %exclude %{pylibdir}/config/Makefile
@@ -2107,9 +2289,70 @@ rm -fr %{buildroot}
 # ======================================================
 
 %changelog
-* Thu Apr 09 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-18.1
+* Fri Oct 09 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-34
+- Revert fix for rhbz#1117751 as it leads to regressions
+Resolves: rhbz#1117751
+
+* Tue Sep 15 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-33
+- Only restore SIG_PIPE when Popen called with restore_sigpipe
+Resolves: rhbz#1117751
+
+* Fri Sep 04 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-32
+- Backport SSLSocket.version function
+- Temporary disable test_gdb on ppc64le rhbz#1260558
+Resolves: rhbz#1259421
+
+* Thu Aug 06 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-31
+- Update load_cert_chain function to accept None keyfile
+Resolves: rhbz#1250611
+
+* Tue Jul 07 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-30
+- Change Patch224 according to latest update in PEP493
+Resolves:rhbz#1219108
+
+* Tue Jul 07 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-29
+- Popen shouldn't ignore SIG_PIPE
+Resolves: rhbz#1117751
+
+* Tue Jul 07 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-28
+- Exclude python subprocess temp files from cleaning
+Resolves: rhbz#1058482
+
+* Wed Jul 01 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-27
+- Add list for cprofile sort option
+Resolves:rhbz#1237107
+
+* Mon Jun 29 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-26
+- Add switch to toggle cert verification on or off globally
+Resolves:rhbz#1219108
+
+* Mon Jun 29 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-25
+- PEP476 enable cert verifications by default
+Resolves:rhbz#1219110
+
+* Mon Jun 29 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-24
+- Massive backport of ssl module from python3 aka PEP466
+Resolves: rhbz#1111461
+
+* Tue Jun 23 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-23
+- Fixed CVE-2013-1753, CVE-2013-1752, CVE-2014-4616, CVE-2014-4650, CVE-2014-7185
+Resolves: rhbz#1206574
+
+* Mon Jun 22 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-22
+- Fix importing readline producing erroneous output
+Resolves: rhbz#1189301
+
+* Mon Jun 22 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-21
+- Add missing import in bdist_rpm
+Resolves: rhbz#1177613
+
+* Mon Jun 22 2015 Matej Stuchlik <mstuchli@redhat.com> - 2.7.5-20
+- Avoid double close of subprocess pipes
+Resolves: rhbz#1103452
+
+* Thu Apr 09 2015 Robert Kuska <rkuska@redhat.com> - 2.7.5-19
 - make multiprocessing ignore EINTR
-Resolves: rhbz#1210347
+Resolves: rhbz#1181624
 
 * Wed Sep  3 2014 Peter Robinson <pbrobinson@redhat.com> 2.7.5-18
 - valgrind is now supported on aarch64/ppc64le
