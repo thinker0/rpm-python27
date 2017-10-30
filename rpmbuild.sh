@@ -1,45 +1,17 @@
-yum install -y \
-    make \
-    rpm-build \
-    yum-utils \
-    apr-devel \
-    cyrus-sasl-devel \
-    gcc \
-    gcc-c++ \
-    git \
-    java-1.8.0-openjdk-devel \
-    krb5-devel \
-    libcurl-devel \
-    patch \
-    python \
-    python-devel \
-    subversion-devel \
-    tar \
-    unzip \
-    wget \
-    zlib-devel \
-    bluez-libs-devel \
-    bzip2-devel \
-    expat-devel \
-    gdbm-devel \
-    gmp-devel \
-    libdb-devel \
-    ligGl-devel \
-    libX11-devel \
-    ncurses-devel \
-    openssl-devel \
-    readline-devel \
-    sqlite-devel \
-    systemtap-sdt-devel \
-    tcl-devel \
-    tix-devel \
-    tk-devel \
-    valgrint-devel \
-    python-setuptools \
-    python-pip \
-    expat-devel \
-    libdb-devel \
-    libffi-devel \
-    libGL-devel \
-    valgrind-devel \
-    python-pip
+#!/bin/bash
+
+IMAGE_NAME=centos6-python:2.7
+BUILDER_DIR=$(pwd)
+echo "Using docker image $IMAGE_NAME"
+docker build --pull -t "$IMAGE_NAME" "$BUILDER_DIR"
+
+docker build --pull -t $IMAGE_NAME $(pwd)
+
+docker run \
+    --net=host \
+    -v "$(pwd)/rpmbuild:/rpmbuild:rw" \
+    -t "$IMAGE_NAME" /build.sh
+container=$(docker ps -l -q)
+artifact_dir="artifacts/$IMAGE_NAME"
+mkdir -p "$artifact_dir"
+docker cp $container:/rpmbuild/RPMS "$artifact_dir"
